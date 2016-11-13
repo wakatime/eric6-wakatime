@@ -10,7 +10,6 @@ import re
 import shutil
 import ssl
 import sys
-import tempfile
 import time
 import threading
 import traceback
@@ -321,18 +320,16 @@ class WakaTimePlugin(QObject):
             if remoteVer and localVer:
                 return remoteVer.strip() == localVer.strip()
         except:
-            log(ERROR, traceback.format_exc())
+            log(DEBUG, traceback.format_exc())
         return False
 
     def _getLatestCliVersion(self):
         url = 'https://raw.githubusercontent.com/wakatime/wakatime/master/wakatime/__about__.py'
         try:
-            with tempfile.NamedTemporaryFile() as tmp:
-                output = tmp.name
-                download(url, output)
-
-                with open(output) as fh:
-                    return self._extractVersion(fh)
+            output = os.path.join(RESOURCES_FOLDER, 'remoteVer')
+            download(url, output)
+            with open(output) as fh:
+                return self._extractVersion(fh)
         except:
             return None
 
@@ -372,15 +369,16 @@ class DownloadCLI(threading.Thread):
         except:
             pass
 
-        with tempfile.NamedTemporaryFile() as fh:
-            zip_file = fh.name
-
+        try:
             url = 'https://github.com/wakatime/wakatime/archive/master.zip'
+            zip_file = os.path.join(RESOURCES_FOLDER, 'wakatime.zip')
             download(url, zip_file)
 
             log(INFO, 'Extracting wakatime-cli...')
             with ZipFile(zip_file) as zf:
                 zf.extractall(RESOURCES_FOLDER)
+        except:
+            log(DEBUG, traceback.format_exc())
 
         log(INFO, 'Finished extracting wakatime-cli.')
 
