@@ -19,7 +19,7 @@ Installation
 
 2. Restart Eric6/Pymakr.
 
-3. Enter your [api key](https://wakatime.com/settings), then press `enter`. If not prompted, select File -> WakaTime.
+3. Enter your [api key](https://wakatime.com/settings), then press `enter`. If not prompted, select File → WakaTime.
 
 4. Use Eric6/Pymakr and your time will be tracked for you automatically.
 
@@ -39,7 +39,7 @@ First, turn on debug mode in your `~/.wakatime.cfg` file by adding this line:
 
 `debug = true`
 
-Second, in Pymakr/Eric6 go to Settings -> Enable expert mode, then add this line to your `~/.config/Pycom/pymakr.ini` file under the `UI` section:
+Second, in Pymakr/Eric6 go to Settings → Enable expert mode, then add this line to your `~/.config/Pycom/pymakr.ini` file under the `UI` section:
 
 `AdvancedBottomSidebar=true`
 
