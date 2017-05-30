@@ -11,10 +11,12 @@
 import os
 import platform
 import sys
+from ssl import SSLError
 try:
-    from urllib2 import urlopen
+    from urllib2 import urlopen, URLError
 except ImportError:
     from urllib.request import urlopen
+    from urllib.error import URLError
 
 
 PY2 = (sys.version_info[0] == 2)
@@ -42,7 +44,7 @@ def main():
     for filename in FILES:
         contents = get_file_contents(filename)
         if not contents:
-            return
+            return 1
         for folder in CONFIG_DIRS:
             if os.path.exists(os.path.dirname(folder)):
                 if not os.path.exists(folder):
@@ -52,6 +54,7 @@ def main():
     print('Installed. You may now restart Eric6/Pymakr.')
     if platform.system() == 'Windows':
         input('Press [Enter] to exit...')
+    return 0
 
 
 def get_file_contents(filename):
@@ -62,8 +65,37 @@ def get_file_contents(filename):
             return fh.read()
     else:
         url = ROOT_URL + filename
-        resp = urlopen(url)
-        return resp.read()
+        try:
+            resp = urlopen(url)
+        except (SSLError, URLError) as e:
+            if 'CERTIFICATE_VERIFY_FAILED' in str(e) and not PY2 and show_certs_message():
+                return
+            raise
+        return resp.read() if PY2 else resp.read().decode('utf-8')
+
+
+def show_certs_message():
+    """Show Install Certificates command so Python can make SSL requests."""
+
+    major, minor, patch = sys.version_info[0], sys.version_info[1], sys.version_info[2]
+    script = 'Install Certificates.command'
+    folder = os.path.join('/Applications/Python {major}.{minor}'.format(
+        major=major,
+        minor=minor,
+    ))
+    if not os.path.exists(os.path.join(folder, script)):
+        folder = os.path.join('/Applications/Python {major}.{minor}.{patch}'.format(
+            major=major,
+            minor=minor,
+            patch=patch,
+        ))
+
+    if os.path.exists(os.path.join(folder, script)):
+        print('Please run this command:')
+        print(os.path.join(folder, script).replace(' ', '\\ '))
+        print('Then re-run this script.')
+        return True
+    return False
 
 
 def save_file(filename, contents):
@@ -74,4 +106,4 @@ def save_file(filename, contents):
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
