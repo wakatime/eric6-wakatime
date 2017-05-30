@@ -13,21 +13,29 @@ import sys
 import time
 import threading
 import traceback
-import urllib
 from datetime import datetime
 from zipfile import ZipFile
 try:
     import ConfigParser as configparser
 except ImportError:
     import configparser
+try:
+    from urllib2 import urlretrieve
+except ImportError:
+    from urllib.request import urlretrieve
+
 
 is_py2 = (sys.version_info[0] == 2)
 if is_py2:
     import codecs
     open = codecs.open
 
-from PyQt5.QtGui import QAction, QIcon, QInputDialog, QLineEdit
+from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import QObject
+try:
+    from PyQt5.QtGui import QAction, QInputDialog, QLineEdit
+except ImportError:
+    from PyQt5.QtWidgets import QAction, QInputDialog, QLineEdit
 
 from E5Gui.E5Application import e5App
 from UI.Info import Program, Version
@@ -385,16 +393,10 @@ class DownloadCLI(threading.Thread):
 
 def download(url, filePath):
     try:
-        try:
-            urllib.urlretrieve(url, filePath)
-        except AttributeError:
-            urllib.request.urlretrieve(url, filePath)
+        urlretrieve(url, filePath)
     except IOError:
         ssl._create_default_https_context = ssl._create_unverified_context
-        try:
-            urllib.urlretrieve(url, filePath)
-        except AttributeError:
-            urllib.request.urlretrieve(url, filePath)
+        urlretrieve(url, filePath)
 
 
 def log(lvl, msg, *args, **kwargs):
