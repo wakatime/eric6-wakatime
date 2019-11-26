@@ -1,6 +1,8 @@
 eric6-wakatime
 ==============
 
+[![Coding time tracker](https://wakatime.com/badge/github/wakatime/eric6-wakatime.svg)](https://wakatime.com/badge/github/wakatime/eric6-wakatime)
+
 Metrics, insights, and time tracking automatically generated from your programming activity.
 
 
