@@ -9,11 +9,13 @@ import platform
 import re
 import shutil
 import ssl
+import subprocess
 import sys
 import time
 import threading
 import traceback
 from datetime import datetime
+from subprocess import PIPE
 from zipfile import ZipFile
 try:
     import ConfigParser as configparser
@@ -67,17 +69,16 @@ else:
 if not os.path.exists(RESOURCES_FOLDER):
     os.makedirs(RESOURCES_FOLDER)
 
-# add wakatime package to path
-sys.path.insert(0, os.path.join(RESOURCES_FOLDER, 'wakatime-master'))
 
 HEARTBEAT_FREQUENCY = 2
-CLI_LOCATION = os.path.join(RESOURCES_FOLDER, 'wakatime-master', 'wakatime', 'cli.py')
+CLI_LOCATION = os.path.join(RESOURCES_FOLDER, 'wakatime-cli', 'wakatime-cli' + ('.exe' if platform.system() == 'Windows' else ''))
 PLUGIN = '{prog}/{progVer} {prog}-wakatime/{pluginVer}'.format(
     prog=Program,
     progVer=Version,
     pluginVer=version,
 )
 IS_DEBUG_ENABLED = False
+S3_HOST = 'https://wakatime-cli.s3-us-west-2.amazonaws.com'
 
 
 # Log Levels
@@ -173,7 +174,7 @@ class WakaTimePlugin(QObject):
     def _setupEventListeners(self):
         e5App().getObject('ViewManager').cursorChanged.connect(self._cursorChanged)
         e5App().getObject('ViewManager').editorSaved.connect(self._editorSaved)
-        #e5App().getObject('Project').projectOpened.connect(self._projectOpened)
+        # e5App().getObject('Project').projectOpened.connect(self._projectOpened)
 
     def _addMenu(self):
         """Adds the WakaTime menu item under the File menu."""
@@ -214,26 +215,24 @@ class WakaTimePlugin(QObject):
         return os.path.basename(fileName) == '0.1'
 
     def _sendHeartbeat(self, fileName, isWrite):
-        try:
-            from wakatime.main import execute
-        except ImportError:
+        if not self._isCliInstalled():
             log(DEBUG, 'Skipping heartbeat because wakatime-cli not found.')
-            return
-        except:
-            log(ERROR, traceback.format_exc())
             return
 
         self._lastFile = fileName
         self._lastTime = time.time()
 
-        args = ['--entity', fileName, '--plugin', PLUGIN]
+        args = [CLI_LOCATION, '--entity', fileName, '--plugin', PLUGIN]
         if isWrite:
             args.append('--write')
 
         log(DEBUG, 'Sending heartbeat:')
         log(DEBUG, ' '.join(args))
-
-        execute(args)
+        stdout, stderr = Popen(args, stdout=PIPE, stderr=PIPE).communicate()
+        if stdout:
+            log(DEBUG, 'STDOUT: {}'.format(stdout))
+        if stderr:
+            log(DEBUG, 'STDERR: {}'.format(stderr))
 
     def _promptForApiKey(self, *args):
         """Prompt the user to enter their api key."""
@@ -319,34 +318,47 @@ class WakaTimePlugin(QObject):
             log(DEBUG, "Error: Could not read from config file {0}\n".format(configFile))
             return None
 
+    def _isCliInstalled(self):
+        return os.path.exists(CLI_LOCATION)
+
     def _isCliLatest(self):
+        if not self._isCliInstalled(self):
+            return False
+
+        args = [CLI_LOCATION, '--version']
+        stdout, stderr = Popen(args, stdout=PIPE, stderr=PIPE).communicate()
+        stdout = (stdout or '') + (stderr or '')
+        localVer = self._extractVersion(stdout)
+        if not localVer:
+            return False
+
         remoteVer = self._getLatestCliVersion()
-        about = os.path.join(RESOURCES_FOLDER, 'wakatime-master', 'wakatime', '__about__.py')
-        try:
-            with open(about) as fh:
-                localVer = self._extractVersion(fh)
-            if remoteVer and localVer:
-                return remoteVer.strip() == localVer.strip()
-        except:
-            log(DEBUG, traceback.format_exc())
-        return False
+        if not remoteVer:
+            return True
+
+        return remoteVer == localVer
 
     def _getLatestCliVersion(self):
-        url = 'https://raw.githubusercontent.com/wakatime/wakatime/master/wakatime/__about__.py'
+        url = getCliVersionUrl()
         try:
-            output = os.path.join(RESOURCES_FOLDER, 'remoteVer')
-            download(url, output)
-            with open(output) as fh:
-                return self._extractVersion(fh)
+            localFile = os.path.join(RESOURCES_FOLDER, 'current_version.txt')
+            download(url, localFile)
+            ver = None
+            with open(localFile) as fh:
+                ver = self._extractVersion(fh.read())
+            try:
+                shutil.rmtree(localFile)
+            except:
+                pass
+            return ver
         except:
             return None
 
-    def _extractVersion(self, fh):
-        pattern = re.compile(r"^__version_info__ = \('([0-9]+)', '([0-9]+)', '([0-9]+)'\)")
-        for line in fh.readlines():
-            match = pattern.search(line)
-            if match:
-                return '{0}.{0}.{0}'.format(match.group(1), match.group(2), match.group(3))
+    def _extractVersion(self, text):
+        pattern = re.compile(r"([0-9]+\.[0-9]+\.[0-9]+)")
+        match = pattern.search(text)
+        if match:
+            return match.group(1)
         return None
 
     def prepareUninstall(self):
@@ -373,18 +385,23 @@ class DownloadCLI(threading.Thread):
         log(INFO, 'Downloading wakatime-cli...')
 
         try:
-            shutil.rmtree(os.path.join(RESOURCES_FOLDER, 'wakatime-master'))
+            shutil.rmtree(os.path.join(RESOURCES_FOLDER, 'wakatime-cli'))
         except:
             pass
 
         try:
-            url = 'https://github.com/wakatime/wakatime/archive/master.zip'
-            zip_file = os.path.join(RESOURCES_FOLDER, 'wakatime.zip')
+            url = getCliUrl()
+            zip_file = os.path.join(RESOURCES_FOLDER, 'wakatime-cli.zip')
             download(url, zip_file)
 
             log(INFO, 'Extracting wakatime-cli...')
             with ZipFile(zip_file) as zf:
                 zf.extractall(RESOURCES_FOLDER)
+
+            try:
+                shutil.rmtree(os.path.join(RESOURCES_FOLDER, 'wakatime-cli.zip'))
+            except:
+                pass
         except:
             log(DEBUG, traceback.format_exc())
 
@@ -411,3 +428,45 @@ def log(lvl, msg, *args, **kwargs):
         print('[WakaTime] [{date}] [{lvl}] {msg}'.format(lvl=lvl, date=date, msg=msg))
     except UnicodeDecodeError:
         print('[WakaTime] [{date}] [{lvl}] {msg}'.format(lvl=lvl, date=date, msg=msg.decode('utf8', 'replace')))
+
+
+def getCliUrl():
+    os = platform.system().lower().replace('darwin', 'mac')
+    arch = '64' if sys.maxsize > 2**32 else '32'
+    return '{host}/{os}-x86-{arch}/wakatime-cli.zip'.format(
+        host=S3_HOST,
+        os=os,
+        arch=arch,
+    )
+
+
+def getCliVersionUrl():
+    os = platform.system().lower().replace('darwin', 'mac')
+    arch = '64' if sys.maxsize > 2**32 else '32'
+    return '{host}/{os}-x86-{arch}/current_version.txt'.format(
+        host=S3_HOST,
+        os=os,
+        arch=arch,
+    )
+
+
+class Popen(subprocess.Popen):
+    """Patched Popen to prevent opening cmd window on Windows platform."""
+
+    def __init__(self, *args, **kwargs):
+        is_win = platform.system() == 'Windows'
+        if is_win:
+            startupinfo = kwargs.get("startupinfo")
+            try:
+                startupinfo = startupinfo or subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            except AttributeError:
+                pass
+            kwargs["startupinfo"] = startupinfo
+        if "env" not in kwargs:
+            env = os.environ.copy()
+            env["LANG"] = "en-US" if is_win else "en_US.UTF-8"
+            if env.get("LD_LIBRARY_PATH_ORIG"):
+                env["LD_LIBRARY_PATH"] = env["LD_LIBRARY_PATH_ORIG"]
+            kwargs["env"] = env
+        subprocess.Popen.__init__(self, *args, **kwargs)
