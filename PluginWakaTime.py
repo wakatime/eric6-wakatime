@@ -68,10 +68,10 @@ if not os.path.exists(RESOURCES_FOLDER):
     os.makedirs(RESOURCES_FOLDER)
 
 # add wakatime package to path
-sys.path.insert(0, os.path.join(RESOURCES_FOLDER, 'wakatime-master'))
+sys.path.insert(0, os.path.join(RESOURCES_FOLDER, 'legacy-python-cli-master'))
 
 HEARTBEAT_FREQUENCY = 2
-CLI_LOCATION = os.path.join(RESOURCES_FOLDER, 'wakatime-master', 'wakatime', 'cli.py')
+CLI_LOCATION = os.path.join(RESOURCES_FOLDER, 'legacy-python-cli-master', 'wakatime', 'cli.py')
 PLUGIN = '{prog}/{progVer} {prog}-wakatime/{pluginVer}'.format(
     prog=Program,
     progVer=Version,
@@ -321,7 +321,7 @@ class WakaTimePlugin(QObject):
 
     def _isCliLatest(self):
         remoteVer = self._getLatestCliVersion()
-        about = os.path.join(RESOURCES_FOLDER, 'wakatime-master', 'wakatime', '__about__.py')
+        about = os.path.join(RESOURCES_FOLDER, 'legacy-python-cli-master', 'wakatime', '__about__.py')
         try:
             with open(about) as fh:
                 localVer = self._extractVersion(fh)
@@ -346,7 +346,7 @@ class WakaTimePlugin(QObject):
         for line in fh.readlines():
             match = pattern.search(line)
             if match:
-                return '{0}.{0}.{0}'.format(match.group(1), match.group(2), match.group(3))
+                return '{0}.{1}.{2}'.format(match.group(1), match.group(2), match.group(3))
         return None
 
     def prepareUninstall(self):
@@ -373,13 +373,13 @@ class DownloadCLI(threading.Thread):
         log(INFO, 'Downloading wakatime-cli...')
 
         try:
-            shutil.rmtree(os.path.join(RESOURCES_FOLDER, 'wakatime-master'))
+            shutil.rmtree(os.path.join(RESOURCES_FOLDER, 'legacy-python-cli-master'))
         except:
             pass
 
         try:
             url = 'https://github.com/wakatime/wakatime/archive/master.zip'
-            zip_file = os.path.join(RESOURCES_FOLDER, 'wakatime.zip')
+            zip_file = os.path.join(RESOURCES_FOLDER, 'legacy-python-cli-master.zip')
             download(url, zip_file)
 
             log(INFO, 'Extracting wakatime-cli...')
